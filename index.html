@@ -196,6 +196,13 @@ h2 {
   box-shadow: none; padding: 0 18px; font-size: 1rem;
 }
 .say.slow:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.say.speaking { animation: say-pulse 0.9s ease-in-out infinite; }
+.say.slow.speaking { border-color: var(--accent); color: var(--accent); }
+@keyframes say-pulse {
+  0%, 100% { box-shadow: 0 6px 0 -1px color-mix(in srgb, var(--accent) 55%, #000), 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  50% { box-shadow: 0 6px 0 -1px color-mix(in srgb, var(--accent) 55%, #000), 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.speech-error { text-align: center; margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--accent); }
 .hint { text-align: center; font-size: 0.8rem; color: var(--muted); margin: 0; }
 @media (max-width: 420px) { .hint { display: none; } }
 
@@ -231,6 +238,7 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .card-inner, .chip, .progress span, .say { transition: none; }
+  .say.speaking { animation: none; outline: 3px solid var(--accent); outline-offset: 3px; }
 }
 
 </style>
@@ -406,16 +414,46 @@ function useSpeech() {
     return () => window.speechSynthesis.removeEventListener("voiceschanged", pick);
   }, [supported]);
 
+  // speaking: null | "normal" | "slow" — lets the button light up while the word plays.
+  const [speaking, setSpeaking] = useState(null);
+  const [error, setError] = useState("");
+
   const say = useCallback((text, slow) => {
-    if (!supported) return;
-    window.speechSynthesis.cancel();
+    if (!supported) {
+      setError("This browser can't read words aloud. Try Chrome, Edge or Safari.");
+      return;
+    }
+    setError("");
+    const synth = window.speechSynthesis;
+    synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-GB";
     if (voiceRef.current) u.voice = voiceRef.current;
     u.rate = slow ? 0.6 : 0.9;
-    window.speechSynthesis.speak(u);
+    const mode = slow ? "slow" : "normal";
+    u.onstart = () => setSpeaking(mode);
+    u.onend = () => setSpeaking(null);
+    u.onerror = (e) => {
+      setSpeaking(null);
+      if (e.error !== "interrupted" && e.error !== "canceled") {
+        setError("The word couldn't be played. Check that your sound is on and try again.");
+      }
+    };
+    setSpeaking(mode);
+    // A short delay after cancel() avoids a Chrome bug where the next word is silently dropped.
+    setTimeout(() => {
+      if (synth.paused) synth.resume();
+      synth.speak(u);
+      // Some browsers never fire onend; reset the button once nothing is playing.
+      const check = setInterval(() => {
+        if (!synth.speaking && !synth.pending) {
+          clearInterval(check);
+          setSpeaking((m) => (m === mode ? null : m));
+        }
+      }, 400);
+    }, 60);
   }, [supported]);
-  return { supported, say };
+  return { supported, say, speaking, error };
 }
 
 function SpeakerIcon() {
@@ -449,7 +487,7 @@ function App() {
   const [order, setOrder] = useState(null); // null = book order; array of ids = shuffled
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const { supported, say } = useSpeech();
+  const { say, speaking, error: speechError } = useSpeech();
 
   useEffect(() => savePrefs({ selected, frontSide, autoSay }), [selected, frontSide, autoSay]);
 
@@ -636,20 +674,31 @@ function App() {
           </button>
           <button
             type="button"
-            className="say"
+            id="say-it"
+            className={"say" + (speaking === "normal" ? " speaking" : "")}
             onClick={() => card && say(card.word)}
-            disabled={!supported || !card}
-            title={supported ? "Hear the word (P)" : "Speech is not available in this browser"}
+            disabled={!card}
+            aria-pressed={speaking === "normal"}
+            title="Hear the word (P)"
           >
-            <SpeakerIcon /> Say it
+            <SpeakerIcon /> {speaking === "normal" ? "Saying…" : "Say it"}
           </button>
-          <button type="button" className="say slow" onClick={() => card && say(card.word, true)} disabled={!supported || !card} title="Hear it slowly">
-            Slowly
+          <button
+            type="button"
+            id="say-slow"
+            className={"say slow" + (speaking === "slow" ? " speaking" : "")}
+            onClick={() => card && say(card.word, true)}
+            disabled={!card}
+            aria-pressed={speaking === "slow"}
+            title="Hear it slowly"
+          >
+            {speaking === "slow" ? "Saying…" : "Slowly"}
           </button>
           <button type="button" className="round" onClick={() => go(1)} aria-label="Next card">
             <Arrow dir="right" />
           </button>
         </div>
+        {speechError && <p className="speech-error" role="status">{speechError}</p>}
         <p className="hint">Tap the card to flip · ← → to move · Space flips · P says the word</p>
       </main>
 

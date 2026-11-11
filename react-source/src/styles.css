@@ -187,6 +187,13 @@ h2 {
   box-shadow: none; padding: 0 18px; font-size: 1rem;
 }
 .say.slow:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.say.speaking { animation: say-pulse 0.9s ease-in-out infinite; }
+.say.slow.speaking { border-color: var(--accent); color: var(--accent); }
+@keyframes say-pulse {
+  0%, 100% { box-shadow: 0 6px 0 -1px color-mix(in srgb, var(--accent) 55%, #000), 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  50% { box-shadow: 0 6px 0 -1px color-mix(in srgb, var(--accent) 55%, #000), 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+.speech-error { text-align: center; margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--accent); }
 .hint { text-align: center; font-size: 0.8rem; color: var(--muted); margin: 0; }
 @media (max-width: 420px) { .hint { display: none; } }
 
@@ -222,4 +229,5 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .card-inner, .chip, .progress span, .say { transition: none; }
+  .say.speaking { animation: none; outline: 3px solid var(--accent); outline-offset: 3px; }
 }
