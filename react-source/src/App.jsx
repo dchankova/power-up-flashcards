@@ -28,22 +28,39 @@ function shuffleArray(arr) {
 }
 
 // ---- Pronunciation (Web Speech API) ----
+// The app picks the best voice on the device by itself. For young learners we want a clear,
+// natural-sounding British woman's voice; browsers don't label gender, so we go by voice names.
+const FEMALE = /\b(female|Libby|Sonia|Maisie|Hazel|Susan|Serena|Kate|Stephanie|Martha|Amy|Emma|Olivia|Samantha|Karen|Moira|Tessa|Fiona|Victoria|Allison|Ava|Zira|Aria|Jenny|Michelle|Natasha|Clara|Emily|Joanna|Salli|Kendra|Kimberly|Ivy|Catherine|Hayley|Google US English|en-gb-x-gba|en-gb-x-gbc|en-gb-x-gbg)\b/i;
+const MALE = /\b(male|Daniel|Arthur|George|Ryan|Thomas|Oliver|Alfie|Elliot|Noah|Ethan|Guy|David|Mark|Alex|Fred|Aaron|Rishi|Gordon|Lee|Tom|Eric|Brian|Christopher|Davis|Roger|Steffan|Tony|Liam|William|James|Mitchell|en-gb-x-gbb|en-gb-x-gbd|en-gb-x-rjs)\b/i;
+
+function isFemale(v) {
+  return FEMALE.test(v.name) && !MALE.test(v.name.replace(/female/gi, ""));
+}
+function voiceScore(v) {
+  const lang = (v.lang || "").toLowerCase().replace("_", "-");
+  let s = lang === "en-gb" ? 30 : lang.startsWith("en") ? 10 : -100; // British English first
+  if (isFemale(v)) s += 20;                                            // warm woman's voice
+  else if (MALE.test(v.name)) s -= 20;
+  if (/natural|neural|online|premium|enhanced/i.test(v.name)) s += 15; // most natural-sounding
+  else if (/google/i.test(v.name)) s += 8;
+  if (/espeak|compact/i.test(v.name)) s -= 10;                         // robotic voices last
+  return s;
+}
+function bestVoice(all) {
+  const best = all.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
+  return best && voiceScore(best) > -50 ? best : null; // no English voice: let the browser choose
+}
+
 function useSpeech() {
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
   const voiceRef = useRef(null);
+
   useEffect(() => {
     if (!supported) return;
-    const pick = () => {
-      const voices = window.speechSynthesis.getVoices();
-      voiceRef.current =
-        voices.find((v) => v.lang === "en-GB" && /female|google|serena|kate|libby|sonia/i.test(v.name)) ||
-        voices.find((v) => v.lang === "en-GB") ||
-        voices.find((v) => v.lang && v.lang.startsWith("en")) ||
-        null;
-    };
-    pick();
-    window.speechSynthesis.addEventListener("voiceschanged", pick);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", pick);
+    const load = () => { voiceRef.current = bestVoice(window.speechSynthesis.getVoices()); };
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
   }, [supported]);
 
   // speaking: null | "normal" | "slow" — lets the button light up while the word plays.
@@ -61,7 +78,10 @@ function useSpeech() {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-GB";
     if (voiceRef.current) u.voice = voiceRef.current;
-    u.rate = slow ? 0.6 : 0.9;
+    // A little slower than normal speech so children hear every sound.
+    u.rate = slow ? 0.55 : 0.85;
+    // Slightly brighter tone; a bit more if the device has no woman's voice.
+    u.pitch = voiceRef.current && isFemale(voiceRef.current) ? 1.05 : 1.2;
     const mode = slow ? "slow" : "normal";
     u.onstart = () => setSpeaking(mode);
     u.onend = () => setSpeaking(null);
