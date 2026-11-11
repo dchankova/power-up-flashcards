@@ -276,6 +276,26 @@ export default function App() {
         </div>
       </section>
 
+      {deck.length > 0 && (
+        <section className="strip" aria-label="Cards in this deck">
+          <h2>In this deck</h2>
+          <div className="thumbs">
+            {deck.map((c, i) => (
+              <button
+                type="button"
+                key={c.id}
+                className={"thumb" + (i === index ? " current" : "")}
+                onClick={() => { setIndex(i); setFlipped(false); }}
+                aria-label={`Go to card ${i + 1}`}
+                title={c.word}
+              >
+                <img src={c.img} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <main className="stage">
         <div className="deck-bar">
           <span className="count">
@@ -354,25 +374,6 @@ export default function App() {
         <p className="hint">Tap the card to flip · ← → to move · Space flips · P says the word</p>
       </main>
 
-      {deck.length > 0 && (
-        <section className="strip" aria-label="Cards in this deck">
-          <h2>In this deck</h2>
-          <div className="thumbs">
-            {deck.map((c, i) => (
-              <button
-                type="button"
-                key={c.id}
-                className={"thumb" + (i === index ? " current" : "")}
-                onClick={() => { setIndex(i); setFlipped(false); }}
-                aria-label={`Go to card ${i + 1}`}
-                title={c.word}
-              >
-                <img src={c.img} alt="" loading="lazy" />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
       <section className="options" aria-label="Options">
         <div className="seg" role="group" aria-label="Show first">
           <span className="seg-label">Show first</span>
