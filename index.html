@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Power Up 0 Flashcards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: one centred column — lesson chips, the big flip card, controls, then a thumbnail strip of the deck.
+   Lesson colours borrow the six Starter colour splats (blue, red, green, yellow, orange, purple). */
+:root {
+  --bg: #eef3f8;
+  --surface: #ffffff;
+  --ink: #1d2740;
+  --muted: #5d6882;
+  --line: #d5deea;
+  --accent: #e5483d;
+  --accent-ink: #ffffff;
+  --card-shadow: 0 18px 40px -18px rgba(29, 39, 64, 0.35), 0 2px 6px rgba(29, 39, 64, 0.08);
+
+  --c-blue: #3d8fd9;
+  --c-red: #d9363a;
+  --c-green: #7cbb2c;
+  --c-yellow: #f2c418;
+  --c-orange: #ef7d1e;
+  --c-purple: #8a3fa0;
+
+  --font-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141a28; --surface: #1f2738; --ink: #eef2fa; --muted: #9ba6bf; --line: #323d55;
+    --accent: #ff6a5c; --accent-ink: #1b0f0e;
+    --card-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141a28; --surface: #1f2738; --ink: #eef2fa; --muted: #9ba6bf; --line: #323d55;
+  --accent: #ff6a5c; --accent-ink: #1b0f0e;
+  --card-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+:focus-visible { outline: 3px solid var(--c-blue); outline-offset: 3px; }
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Header */
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark { display: grid; grid-template-columns: repeat(3, 12px); gap: 4px; }
+.brand-mark i { width: 12px; height: 26px; border-radius: 6px; display: block; }
+.brand-mark i:nth-child(2) { transform: translateY(5px); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.6rem; line-height: 1.1; margin: 0; text-wrap: balance; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 0.9rem; }
+h2 {
+  font-family: var(--font-body); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin: 0;
+}
+
+/* Lesson colours */
+.l0 { --lc: var(--ink); }
+.l1 { --lc: var(--c-blue); }
+.l2 { --lc: var(--c-red); }
+.l3 { --lc: var(--c-green); }
+.l4 { --lc: var(--c-orange); }
+.l5 { --lc: var(--c-purple); }
+.l6 { --lc: #19a3a3; }
+.l7 { --lc: #d64a8a; }
+.l8 { --lc: #c99a0b; }
+.l9 { --lc: #4a62d4; }
+
+/* Lesson picker */
+.picker { display: flex; flex-direction: column; gap: 10px; }
+.picker-head { display: flex; justify-content: space-between; align-items: baseline; }
+.link { background: none; border: 0; padding: 4px 2px; color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+.chips { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.chip {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 8px 2px 6px; border-radius: 14px;
+  border: 2px solid var(--line); background: var(--surface);
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.chip:hover { transform: translateY(-2px); border-color: var(--lc); }
+.chip-num { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; line-height: 1.1; color: var(--lc); }
+.chip-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.chip.on { background: var(--lc); border-color: var(--lc); }
+.chip.on .chip-num, .chip.on .chip-label { color: #fff; }
+.chip.l0.on .chip-num, .chip.l0.on .chip-label { color: var(--bg); }
+@media (max-width: 560px) {
+  .chips { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+/* Stage */
+.stage { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.deck-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.count { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.count b { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; }
+.muted { color: var(--muted); }
+.bar-actions { display: flex; gap: 8px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 0.9rem;
+  border: 2px solid var(--ink); background: var(--surface);
+}
+.pill.active { background: var(--ink); color: var(--bg); }
+.pill.ghost { border-color: var(--line); }
+
+.progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.25s ease; }
+
+/* Flip card */
+.card-wrap { perspective: 1400px; display: flex; justify-content: center; touch-action: pan-y; }
+.card {
+  width: min(100%, 420px);
+  aspect-ratio: 436 / 520;
+  max-width: 100%;
+  padding: 0; border: 0; background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.card-inner {
+  position: relative; display: block; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.card.flipped .card-inner { transform: rotateY(180deg); }
+.side {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: #ffffff; border-radius: 22px; box-shadow: var(--card-shadow);
+  border: 1px solid var(--line);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+.side.back { transform: rotateY(180deg); }
+.tag {
+  position: absolute; top: 14px; right: 14px; z-index: 2;
+  min-width: 34px; height: 34px; padding: 0 8px; border-radius: 17px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--lc); color: #fff;
+  font-family: var(--font-display); font-weight: 600; font-size: 1.05rem;
+}
+.tag.l0 { background: #1d2740; }
+.face { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.face-picture { padding: 44px 26px 26px; }
+.face-picture img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; }
+.face-word { padding: 24px; }
+.word {
+  font-family: var(--font-display); font-weight: 600; color: #1d2740;
+  font-size: clamp(2.6rem, 11vw, 4.4rem); line-height: 1.05; text-align: center; text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.word.long { font-size: clamp(2rem, 8.5vw, 3.4rem); }
+.empty { text-align: center; color: var(--muted); padding: 60px 0; }
+
+/* Controls */
+.controls { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+.round {
+  width: 54px; height: 54px; border-radius: 50%;
+  border: 2px solid var(--line); background: var(--surface);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.round:hover { border-color: var(--ink); }
+.say {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 54px; padding: 0 22px; border-radius: 27px; border: 0;
+  background: var(--accent); color: var(--accent-ink);
+  font-family: var(--font-display); font-weight: 600; font-size: 1.15rem;
+  box-shadow: 0 6px 0 -1px color-mix(in srgb, var(--accent) 55%, #000);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.say:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 -1px color-mix(in srgb, var(--accent) 55%, #000); }
+.say.slow {
+  background: var(--surface); color: var(--ink); border: 2px solid var(--line);
+  box-shadow: none; padding: 0 18px; font-size: 1rem;
+}
+.say.slow:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.hint { text-align: center; font-size: 0.8rem; color: var(--muted); margin: 0; }
+@media (max-width: 420px) { .hint { display: none; } }
+
+/* Options */
+.options {
+  display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: center;
+  padding-block: 14px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.seg { display: inline-flex; align-items: center; gap: 4px; }
+.seg-label { font-size: 0.85rem; color: var(--muted); margin-right: 6px; }
+.seg button {
+  padding: 6px 14px; border-radius: 999px; border: 2px solid var(--line); background: var(--surface);
+  font-weight: 700; font-size: 0.9rem;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.toggle { display: inline-flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; }
+.toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.track { width: 42px; height: 24px; border-radius: 12px; background: var(--line); position: relative; transition: background 0.15s; flex: none; }
+.track span { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.toggle input:checked + .track { background: var(--c-green); }
+.toggle input:checked + .track span { transform: translateX(18px); }
+.toggle input:focus-visible + .track { outline: 3px solid var(--c-blue); outline-offset: 2px; }
+
+/* Thumbnail strip */
+.strip { display: flex; flex-direction: column; gap: 10px; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.thumb {
+  aspect-ratio: 1; padding: 6px; border-radius: 12px; background: #ffffff;
+  border: 2px solid var(--line); display: flex; align-items: center; justify-content: center;
+}
+.thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.thumb.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-inner, .chip, .progress span, .say { transition: none; }
+}
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+// Extracted from Power Up Second Edition Level 0 flashcards (lesson 0 = Starter)
+const CARDS = [{"id": 1, "word": "blue", "lesson": 0, "img": "img/001.webp"},
+  {"id": 2, "word": "red", "lesson": 0, "img": "img/002.webp"},
+  {"id": 3, "word": "green", "lesson": 0, "img": "img/003.webp"},
+  {"id": 4, "word": "yellow", "lesson": 0, "img": "img/004.webp"},
+  {"id": 5, "word": "orange", "lesson": 0, "img": "img/005.webp"},
+  {"id": 6, "word": "purple", "lesson": 0, "img": "img/006.webp"},
+  {"id": 7, "word": "one", "lesson": 0, "img": "img/007.webp"},
+  {"id": 8, "word": "two", "lesson": 0, "img": "img/008.webp"},
+  {"id": 9, "word": "three", "lesson": 0, "img": "img/009.webp"},
+  {"id": 10, "word": "four", "lesson": 0, "img": "img/010.webp"},
+  {"id": 11, "word": "five", "lesson": 0, "img": "img/011.webp"},
+  {"id": 12, "word": "six", "lesson": 0, "img": "img/012.webp"},
+  {"id": 13, "word": "Jim", "lesson": 0, "img": "img/013.webp"},
+  {"id": 14, "word": "Jenny", "lesson": 0, "img": "img/014.webp"},
+  {"id": 15, "word": "Anna", "lesson": 0, "img": "img/015.webp"},
+  {"id": 16, "word": "Matt", "lesson": 0, "img": "img/016.webp"},
+  {"id": 17, "word": "Mrs Friendly", "lesson": 0, "img": "img/017.webp"},
+  {"id": 18, "word": "Mr Friendly", "lesson": 0, "img": "img/018.webp"},
+  {"id": 19, "word": "Cameron", "lesson": 0, "img": "img/019.webp"},
+  {"id": 20, "word": "Frida", "lesson": 0, "img": "img/020.webp"},
+  {"id": 21, "word": "bird", "lesson": 0, "img": "img/021.webp"},
+  {"id": 22, "word": "boat", "lesson": 0, "img": "img/022.webp"},
+  {"id": 23, "word": "book", "lesson": 0, "img": "img/023.webp"},
+  {"id": 24, "word": "bus", "lesson": 0, "img": "img/024.webp"},
+  {"id": 25, "word": "cat", "lesson": 0, "img": "img/025.webp"},
+  {"id": 26, "word": "boy", "lesson": 1, "img": "img/026.webp"},
+  {"id": 27, "word": "family", "lesson": 1, "img": "img/027.webp"},
+  {"id": 28, "word": "girl", "lesson": 1, "img": "img/028.webp"},
+  {"id": 29, "word": "man", "lesson": 1, "img": "img/029.webp"},
+  {"id": 30, "word": "woman", "lesson": 1, "img": "img/030.webp"},
+  {"id": 31, "word": "brother", "lesson": 1, "img": "img/031.webp"},
+  {"id": 32, "word": "dad", "lesson": 1, "img": "img/032.webp"},
+  {"id": 33, "word": "mum", "lesson": 1, "img": "img/033.webp"},
+  {"id": 34, "word": "pet", "lesson": 1, "img": "img/034.webp"},
+  {"id": 35, "word": "sister", "lesson": 1, "img": "img/035.webp"},
+  {"id": 36, "word": "bag", "lesson": 2, "img": "img/036.webp"},
+  {"id": 37, "word": "classroom", "lesson": 2, "img": "img/037.webp"},
+  {"id": 38, "word": "pencil", "lesson": 2, "img": "img/038.webp"},
+  {"id": 39, "word": "playground", "lesson": 2, "img": "img/039.webp"},
+  {"id": 40, "word": "teacher", "lesson": 2, "img": "img/040.webp"},
+  {"id": 41, "word": "board", "lesson": 2, "img": "img/041.webp"},
+  {"id": 42, "word": "bookcase", "lesson": 2, "img": "img/042.webp"},
+  {"id": 43, "word": "chair", "lesson": 2, "img": "img/043.webp"},
+  {"id": 44, "word": "cupboard", "lesson": 2, "img": "img/044.webp"},
+  {"id": 45, "word": "table", "lesson": 2, "img": "img/045.webp"},
+  {"id": 46, "word": "apple", "lesson": 3, "img": "img/046.webp"},
+  {"id": 47, "word": "banana", "lesson": 3, "img": "img/047.webp"},
+  {"id": 48, "word": "grapes", "lesson": 3, "img": "img/048.webp"},
+  {"id": 49, "word": "orange", "lesson": 3, "img": "img/049.webp"},
+  {"id": 50, "word": "watermelon", "lesson": 3, "img": "img/050.webp"},
+  {"id": 51, "word": "beans", "lesson": 3, "img": "img/051.webp"},
+  {"id": 52, "word": "burger", "lesson": 3, "img": "img/052.webp"},
+  {"id": 53, "word": "carrot", "lesson": 3, "img": "img/053.webp"},
+  {"id": 54, "word": "egg", "lesson": 3, "img": "img/054.webp"},
+  {"id": 55, "word": "rice", "lesson": 3, "img": "img/055.webp"},
+  {"id": 56, "word": "bed", "lesson": 4, "img": "img/056.webp"},
+  {"id": 57, "word": "clock", "lesson": 4, "img": "img/057.webp"},
+  {"id": 58, "word": "computer", "lesson": 4, "img": "img/058.webp"},
+  {"id": 59, "word": "lamp", "lesson": 4, "img": "img/059.webp"},
+  {"id": 60, "word": "mirror", "lesson": 4, "img": "img/060.webp"},
+  {"id": 61, "word": "bathroom", "lesson": 4, "img": "img/061.webp"},
+  {"id": 62, "word": "bedroom", "lesson": 4, "img": "img/062.webp"},
+  {"id": 63, "word": "garden", "lesson": 4, "img": "img/063.webp"},
+  {"id": 64, "word": "kitchen", "lesson": 4, "img": "img/064.webp"},
+  {"id": 65, "word": "living room", "lesson": 4, "img": "img/065.webp"},
+  {"id": 66, "word": "ears", "lesson": 5, "img": "img/066.webp"},
+  {"id": 67, "word": "eyes", "lesson": 5, "img": "img/067.webp"},
+  {"id": 68, "word": "hair", "lesson": 5, "img": "img/068.webp"},
+  {"id": 69, "word": "mouth", "lesson": 5, "img": "img/069.webp"},
+  {"id": 70, "word": "legs", "lesson": 5, "img": "img/070.webp"},
+  {"id": 71, "word": "beautiful", "lesson": 5, "img": "img/071.webp"},
+  {"id": 72, "word": "big", "lesson": 5, "img": "img/072.webp"},
+  {"id": 73, "word": "long", "lesson": 5, "img": "img/073.webp"},
+  {"id": 74, "word": "short", "lesson": 5, "img": "img/074.webp"},
+  {"id": 75, "word": "small", "lesson": 5, "img": "img/075.webp"},
+  {"id": 76, "word": "board game", "lesson": 6, "img": "img/076.webp"},
+  {"id": 77, "word": "camera", "lesson": 6, "img": "img/077.webp"},
+  {"id": 78, "word": "doll", "lesson": 6, "img": "img/078.webp"},
+  {"id": 79, "word": "teddy", "lesson": 6, "img": "img/079.webp"},
+  {"id": 80, "word": "train", "lesson": 6, "img": "img/080.webp"},
+  {"id": 81, "word": "ball", "lesson": 6, "img": "img/081.webp"},
+  {"id": 82, "word": "balloon", "lesson": 6, "img": "img/082.webp"},
+  {"id": 83, "word": "bike", "lesson": 6, "img": "img/083.webp"},
+  {"id": 84, "word": "car", "lesson": 6, "img": "img/084.webp"},
+  {"id": 85, "word": "plane", "lesson": 6, "img": "img/085.webp"},
+  {"id": 86, "word": "climb", "lesson": 7, "img": "img/086.webp"},
+  {"id": 87, "word": "jump", "lesson": 7, "img": "img/087.webp"},
+  {"id": 88, "word": "run", "lesson": 7, "img": "img/088.webp"},
+  {"id": 89, "word": "swim", "lesson": 7, "img": "img/089.webp"},
+  {"id": 90, "word": "walk", "lesson": 7, "img": "img/090.webp"},
+  {"id": 91, "word": "catch a ball", "lesson": 7, "img": "img/091.webp"},
+  {"id": 92, "word": "fly a plane", "lesson": 7, "img": "img/092.webp"},
+  {"id": 93, "word": "play basketball", "lesson": 7, "img": "img/093.webp"},
+  {"id": 94, "word": "play football", "lesson": 7, "img": "img/094.webp"},
+  {"id": 95, "word": "play the piano", "lesson": 7, "img": "img/095.webp"},
+  {"id": 96, "word": "clean", "lesson": 8, "img": "img/096.webp"},
+  {"id": 97, "word": "drink", "lesson": 8, "img": "img/097.webp"},
+  {"id": 98, "word": "eat", "lesson": 8, "img": "img/098.webp"},
+  {"id": 99, "word": "sleep", "lesson": 8, "img": "img/099.webp"},
+  {"id": 100, "word": "take a photo", "lesson": 8, "img": "img/100.webp"},
+  {"id": 101, "word": "beach", "lesson": 8, "img": "img/101.webp"},
+  {"id": 102, "word": "flower", "lesson": 8, "img": "img/102.webp"},
+  {"id": 103, "word": "sea", "lesson": 8, "img": "img/103.webp"},
+  {"id": 104, "word": "sun", "lesson": 8, "img": "img/104.webp"},
+  {"id": 105, "word": "tree", "lesson": 8, "img": "img/105.webp"},
+  {"id": 106, "word": "jacket", "lesson": 9, "img": "img/106.webp"},
+  {"id": 107, "word": "jeans", "lesson": 9, "img": "img/107.webp"},
+  {"id": 108, "word": "shoes", "lesson": 9, "img": "img/108.webp"},
+  {"id": 109, "word": "socks", "lesson": 9, "img": "img/109.webp"},
+  {"id": 110, "word": "T-shirt", "lesson": 9, "img": "img/110.webp"},
+  {"id": 111, "word": "dog", "lesson": 9, "img": "img/111.webp"},
+  {"id": 112, "word": "duck", "lesson": 9, "img": "img/112.webp"},
+  {"id": 113, "word": "goat", "lesson": 9, "img": "img/113.webp"},
+  {"id": 114, "word": "horse", "lesson": 9, "img": "img/114.webp"},
+  {"id": 115, "word": "sheep", "lesson": 9, "img": "img/115.webp"}];
+
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+
+// Lesson 0 is the Starter unit (colours, numbers, characters, first words).
+const LESSONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const lessonName = (n) => (n === 0 ? "Starter" : `Lesson ${n}`);
+const lessonShort = (n) => (n === 0 ? "S" : String(n));
+const STORE_KEY = "pu0-flashcards";
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+}
+function savePrefs(p) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(p)); } catch (e) {}
+}
+
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---- Pronunciation (Web Speech API) ----
+function useSpeech() {
+  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const voiceRef = useRef(null);
+  useEffect(() => {
+    if (!supported) return;
+    const pick = () => {
+      const voices = window.speechSynthesis.getVoices();
+      voiceRef.current =
+        voices.find((v) => v.lang === "en-GB" && /female|google|serena|kate|libby|sonia/i.test(v.name)) ||
+        voices.find((v) => v.lang === "en-GB") ||
+        voices.find((v) => v.lang && v.lang.startsWith("en")) ||
+        null;
+    };
+    pick();
+    window.speechSynthesis.addEventListener("voiceschanged", pick);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", pick);
+  }, [supported]);
+
+  const say = useCallback((text, slow) => {
+    if (!supported) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-GB";
+    if (voiceRef.current) u.voice = voiceRef.current;
+    u.rate = slow ? 0.6 : 0.9;
+    window.speechSynthesis.speak(u);
+  }, [supported]);
+  return { supported, say };
+}
+
+function SpeakerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+      <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function ShuffleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7h3c4 0 6 10 10 10h5M18 14l3 3-3 3M3 17h3c1.6 0 2.8-1.6 3.9-3.5M13.6 9.2C14.4 8 15.2 7 16 7h5M18 4l3 3-3 3" />
+    </svg>
+  );
+}
+function Arrow({ dir }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      {dir === "left" ? <path d="M15 5l-7 7 7 7" /> : <path d="M9 5l7 7-7 7" />}
+    </svg>
+  );
+}
+
+function App() {
+  const saved = loadPrefs();
+  const [selected, setSelected] = useState(saved?.selected?.length ? saved.selected : [1]);
+  const [frontSide, setFrontSide] = useState(saved?.frontSide || "picture"); // "picture" | "word"
+  const [autoSay, setAutoSay] = useState(saved?.autoSay ?? false);
+  const [order, setOrder] = useState(null); // null = book order; array of ids = shuffled
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const { supported, say } = useSpeech();
+
+  useEffect(() => savePrefs({ selected, frontSide, autoSay }), [selected, frontSide, autoSay]);
+
+  const pool = useMemo(
+    () => CARDS.filter((c) => selected.includes(c.lesson)),
+    [selected]
+  );
+  const deck = useMemo(() => {
+    if (!order) return pool;
+    const byId = new Map(pool.map((c) => [c.id, c]));
+    return order.map((id) => byId.get(id)).filter(Boolean);
+  }, [pool, order]);
+
+  // When the lesson selection changes, start the deck again.
+  useEffect(() => {
+    setOrder((o) => (o ? shuffleArray(pool.map((c) => c.id)) : null));
+    setIndex(0);
+    setFlipped(false);
+  }, [pool]);
+
+  const card = deck[index];
+
+  const go = useCallback((delta) => {
+    if (!deck.length) return;
+    setFlipped(false);
+    setIndex((i) => (i + delta + deck.length) % deck.length);
+  }, [deck.length]);
+
+  const flip = useCallback(() => setFlipped((f) => !f), []);
+
+  const doShuffle = () => {
+    setOrder(shuffleArray(pool.map((c) => c.id)));
+    setIndex(0);
+    setFlipped(false);
+  };
+  const resetOrder = () => {
+    setOrder(null);
+    setIndex(0);
+    setFlipped(false);
+  };
+
+  const toggleLesson = (n) => {
+    setSelected((s) => {
+      if (s.includes(n)) return s.length === 1 ? s : s.filter((x) => x !== n);
+      return [...s, n].sort((a, b) => a - b);
+    });
+  };
+  const allSelected = selected.length === LESSONS.length;
+  const selectAll = () => setSelected(allSelected ? [selected[0] ?? 1] : LESSONS.slice());
+
+  // Say the word automatically when the word side becomes visible.
+  const wordVisible = (frontSide === "word") !== flipped;
+  useEffect(() => {
+    if (autoSay && wordVisible && card) say(card.word);
+  }, [autoSay, wordVisible, card, say]);
+
+  // Keyboard: ← → navigate, Space flips, P pronounces.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.closest && e.target.closest("input, select, textarea")) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+      else if (e.key === " " && !(e.target.tagName === "BUTTON")) { e.preventDefault(); flip(); }
+      else if (e.key.toLowerCase() === "p" && card) say(card.word);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [go, flip, say, card]);
+
+  // Swipe on touch screens.
+  const touch = useRef(null);
+  const onTouchStart = (e) => { touch.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (touch.current == null) return;
+    const dx = e.changedTouches[0].clientX - touch.current;
+    touch.current = null;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  };
+
+  const countFor = (n) => CARDS.filter((c) => c.lesson === n).length;
+
+  const picture = card && (
+    <span className="face face-picture">
+      <img src={card.img} alt={frontSide === "picture" && !flipped ? "Flashcard picture" : card.word} draggable="false" />
+    </span>
+  );
+  const word = card && (
+    <span className="face face-word">
+      <span className={"word" + (card.word.length > 11 ? " long" : "")}>{card.word}</span>
+    </span>
+  );
+
+  return (
+    <div className="app">
+      <header className="top">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <i style={{ background: "var(--c-blue)" }} />
+            <i style={{ background: "var(--c-red)" }} />
+            <i style={{ background: "var(--c-yellow)" }} />
+          </span>
+          <div>
+            <h1>Power Up 0 Flashcards</h1>
+            <p className="sub">{CARDS.length} picture cards · Starter + Lessons 1–9</p>
+          </div>
+        </div>
+      </header>
+
+      <section className="picker" aria-label="Choose lessons">
+        <div className="picker-head">
+          <h2>Lessons</h2>
+          <button type="button" className="link" onClick={selectAll}>
+            {allSelected ? "Clear" : "Select all"}
+          </button>
+        </div>
+        <div className="chips">
+          {LESSONS.map((n) => {
+            const on = selected.includes(n);
+            return (
+              <button
+                key={n}
+                id={`lesson-${n}`}
+                type="button"
+                className={"chip l" + n + (on ? " on" : "")}
+                aria-pressed={on}
+                onClick={() => toggleLesson(n)}
+                title={`${lessonName(n)} · ${countFor(n)} cards`}
+              >
+                <span className="chip-num">{lessonShort(n)}</span>
+                <span className="chip-label">{n === 0 ? "Starter" : "Lesson"}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <main className="stage">
+        <div className="deck-bar">
+          <span className="count">
+            <b>{deck.length ? index + 1 : 0}</b> / {deck.length}
+            <span className="muted"> {order ? "· shuffled" : "· book order"}</span>
+          </span>
+          <div className="bar-actions">
+            <button type="button" id="shuffle" className={"pill" + (order ? " active" : "")} onClick={doShuffle}>
+              <ShuffleIcon /> {order ? "Shuffle again" : "Shuffle"}
+            </button>
+            {order && (
+              <button type="button" className="pill ghost" onClick={resetOrder}>Book order</button>
+            )}
+          </div>
+        </div>
+
+        <div className="progress" aria-hidden="true">
+          <span style={{ width: deck.length ? `${((index + 1) / deck.length) * 100}%` : 0 }} />
+        </div>
+
+        {card ? (
+          <div className="card-wrap" key={card.id} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            <button
+              type="button"
+              className={"card" + (flipped ? " flipped" : "")}
+              onClick={flip}
+              aria-label={flipped || frontSide === "word" ? `Card: ${card.word}. Click to flip.` : "Card picture. Click to flip and see the word."}
+            >
+              <span className="card-inner">
+                <span className="side front">
+                  <span className={"tag l" + card.lesson}>{lessonShort(card.lesson)}</span>
+                  {frontSide === "picture" ? picture : word}
+                </span>
+                <span className="side back">
+                  <span className={"tag l" + card.lesson}>{lessonShort(card.lesson)}</span>
+                  {frontSide === "picture" ? word : picture}
+                </span>
+              </span>
+            </button>
+          </div>
+        ) : (
+          <p className="empty">Pick at least one lesson to start.</p>
+        )}
+
+        <div className="controls">
+          <button type="button" className="round" onClick={() => go(-1)} aria-label="Previous card">
+            <Arrow dir="left" />
+          </button>
+          <button
+            type="button"
+            className="say"
+            onClick={() => card && say(card.word)}
+            disabled={!supported || !card}
+            title={supported ? "Hear the word (P)" : "Speech is not available in this browser"}
+          >
+            <SpeakerIcon /> Say it
+          </button>
+          <button type="button" className="say slow" onClick={() => card && say(card.word, true)} disabled={!supported || !card} title="Hear it slowly">
+            Slowly
+          </button>
+          <button type="button" className="round" onClick={() => go(1)} aria-label="Next card">
+            <Arrow dir="right" />
+          </button>
+        </div>
+        <p className="hint">Tap the card to flip · ← → to move · Space flips · P says the word</p>
+      </main>
+
+      <section className="options" aria-label="Options">
+        <div className="seg" role="group" aria-label="Show first">
+          <span className="seg-label">Show first</span>
+          <button type="button" id="front-picture" aria-pressed={frontSide === "picture"} onClick={() => { setFrontSide("picture"); setFlipped(false); }}>Picture</button>
+          <button type="button" id="front-word" aria-pressed={frontSide === "word"} onClick={() => { setFrontSide("word"); setFlipped(false); }}>Word</button>
+        </div>
+        <label className="toggle" htmlFor="auto-say">
+          <input id="auto-say" type="checkbox" checked={autoSay} onChange={(e) => setAutoSay(e.target.checked)} />
+          <span className="track"><span /></span>
+          Say the word when it appears
+        </label>
+      </section>
+
+      {deck.length > 0 && (
+        <section className="strip" aria-label="Cards in this deck">
+          <h2>In this deck</h2>
+          <div className="thumbs">
+            {deck.map((c, i) => (
+              <button
+                type="button"
+                key={c.id}
+                className={"thumb" + (i === index ? " current" : "")}
+                onClick={() => { setIndex(i); setFlipped(false); }}
+                aria-label={`Go to card ${i + 1}`}
+                title={c.word}
+              >
+                <img src={c.img} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
