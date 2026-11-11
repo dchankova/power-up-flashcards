@@ -354,19 +354,6 @@ export default function App() {
         <p className="hint">Tap the card to flip · ← → to move · Space flips · P says the word</p>
       </main>
 
-      <section className="options" aria-label="Options">
-        <div className="seg" role="group" aria-label="Show first">
-          <span className="seg-label">Show first</span>
-          <button type="button" id="front-picture" aria-pressed={frontSide === "picture"} onClick={() => { setFrontSide("picture"); setFlipped(false); }}>Picture</button>
-          <button type="button" id="front-word" aria-pressed={frontSide === "word"} onClick={() => { setFrontSide("word"); setFlipped(false); }}>Word</button>
-        </div>
-        <label className="toggle" htmlFor="auto-say">
-          <input id="auto-say" type="checkbox" checked={autoSay} onChange={(e) => setAutoSay(e.target.checked)} />
-          <span className="track"><span /></span>
-          Say the word when it appears
-        </label>
-      </section>
-
       {deck.length > 0 && (
         <section className="strip" aria-label="Cards in this deck">
           <h2>In this deck</h2>
@@ -386,6 +373,19 @@ export default function App() {
           </div>
         </section>
       )}
+      <section className="options" aria-label="Options">
+        <div className="seg" role="group" aria-label="Show first">
+          <span className="seg-label">Show first</span>
+          <button type="button" id="front-picture" aria-pressed={frontSide === "picture"} onClick={() => { setFrontSide("picture"); setFlipped(false); }}>Picture</button>
+          <button type="button" id="front-word" aria-pressed={frontSide === "word"} onClick={() => { setFrontSide("word"); setFlipped(false); }}>Word</button>
+        </div>
+        <label className="toggle" htmlFor="auto-say">
+          <input id="auto-say" type="checkbox" checked={autoSay} onChange={(e) => setAutoSay(e.target.checked)} />
+          <span className="track"><span /></span>
+          Say the word when it appears
+        </label>
+      </section>
+
     </div>
   );
 }
