@@ -340,6 +340,13 @@ export default function App() {
           <p className="empty">Pick at least one lesson to start.</p>
         )}
 
+        {card && (
+          <p className="translation" lang="bg">
+            <span className="translation-label">БГ</span>
+            {card.bg}
+          </p>
+        )}
+
         <div className="controls">
           <button type="button" className="round" onClick={() => go(-1)} aria-label="Previous card">
             <Arrow dir="left" />
@@ -354,17 +361,6 @@ export default function App() {
             title="Hear the word (P)"
           >
             <SpeakerIcon /> {speaking === "normal" ? "Saying…" : "Say it"}
-          </button>
-          <button
-            type="button"
-            id="say-slow"
-            className={"say slow" + (speaking === "slow" ? " speaking" : "")}
-            onClick={() => card && say(card.word, true)}
-            disabled={!card}
-            aria-pressed={speaking === "slow"}
-            title="Hear it slowly"
-          >
-            {speaking === "slow" ? "Saying…" : "Slowly"}
           </button>
           <button type="button" className="round" onClick={() => go(1)} aria-label="Next card">
             <Arrow dir="right" />
