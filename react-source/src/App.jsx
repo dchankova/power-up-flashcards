@@ -108,6 +108,135 @@ function useSpeech() {
   return { supported, say, speaking, error };
 }
 
+// ---- Voice check (Web Speech API: SpeechRecognition) ----
+// The child says the word; we compare what the browser heard with the card and react.
+const NUM_WORDS = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
+// Words that sound the same, so recognition may return the other spelling.
+const SOUNDS_LIKE = {
+  one: ["won"], two: ["to", "too"], four: ["for", "fore"], eight: ["ate"], ten: ["tan"],
+  blue: ["blew"], red: ["read"], no: ["know"], write: ["right"], see: ["sea"], eye: ["i"],
+  hair: ["hare"], bear: ["bare"], there: ["their"], here: ["hear"], pear: ["pair"], son: ["sun"],
+  sun: ["son"], tail: ["tale"], whale: ["wale"], knee: ["nee"], nose: ["knows"], meet: ["meat"],
+};
+const PRAISE = ["Great job!", "Well done!", "Perfect!", "Super!", "Brilliant!", "Fantastic!"];
+const TRY_AGAIN = ["Almost! Try again.", "Not quite. Try again!", "Good try! Say it once more."];
+
+function tokens(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/\d+/g, (d) => " " + (NUM_WORDS[+d] || d) + " ")
+    .replace(/[^a-z\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+// Kind to young learners: "a dog" counts for "dog", homophones count, and one slip
+// in a long word (5+ letters) is forgiven because speech recognition isn't perfect.
+function matches(heard, target) {
+  const want = tokens(target).join("");
+  if (!want) return false;
+  const words = tokens(heard);
+  const joined = words.join("");
+  const alts = [want, ...(SOUNDS_LIKE[want] || [])];
+  if (alts.includes(joined)) return true;
+  return words.some((w) => alts.includes(w) || (want.length >= 5 && editDistance(w, want) <= 1));
+}
+
+// Short happy chime / soft "boop", made with the Web Audio API (no sound files needed).
+function playTone(ok) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const notes = ok ? [[523, 0], [659, 0.12], [784, 0.24], [1047, 0.36]] : [[330, 0], [262, 0.18]];
+    notes.forEach(([freq, t]) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = ok ? "triangle" : "sine";
+      o.frequency.value = freq;
+      const at = ctx.currentTime + t;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.25, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.26);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(at); o.stop(at + 0.3);
+    });
+    setTimeout(() => ctx.close(), 1200);
+  } catch (e) {}
+}
+
+// status: "idle" | "listening" | "correct" | "wrong" | "error"
+function useListen() {
+  const Rec = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const recRef = useRef(null);
+  const [state, setState] = useState({ status: "idle", heard: "", msg: "", n: 0 });
+
+  const stop = useCallback(() => {
+    const r = recRef.current;
+    recRef.current = null;
+    if (r) { r.onresult = r.onerror = r.onend = null; try { r.abort(); } catch (e) {} }
+  }, []);
+  const reset = useCallback(() => { stop(); setState((s) => ({ status: "idle", heard: "", msg: "", n: s.n })); }, [stop]);
+
+  const listen = useCallback((target) => {
+    if (!Rec) {
+      setState((s) => ({ ...s, status: "error", heard: "", msg: "Voice check needs Chrome, Edge or Safari." }));
+      return;
+    }
+    stop();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel(); // don't hear our own voice
+    const r = new Rec();
+    r.lang = "en-GB";
+    r.interimResults = false;
+    r.continuous = false;
+    r.maxAlternatives = 5;
+    let done = false;
+    const fail = (msg) => { done = true; setState((s) => ({ ...s, status: "error", heard: "", msg })); };
+    r.onresult = (e) => {
+      done = true;
+      const alts = Array.from(e.results[0] || []).map((a) => a.transcript);
+      const ok = alts.some((a) => matches(a, target));
+      playTone(ok);
+      const pick = (list) => list[Math.floor(Math.random() * list.length)];
+      setState((s) => ({ status: ok ? "correct" : "wrong", heard: alts[0] || "", msg: ok ? pick(PRAISE) : pick(TRY_AGAIN), n: s.n + 1 }));
+    };
+    r.onerror = (e) => {
+      if (e.error === "aborted") return;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") fail("The microphone is blocked. Allow it in your browser, then try again.");
+      else if (e.error === "no-speech") fail("I didn't hear anything. Tap the microphone and try again!");
+      else if (e.error === "audio-capture") fail("No microphone found.");
+      else if (e.error === "network") fail("Voice check needs an internet connection.");
+      else fail("Voice check didn't work. Please try again.");
+    };
+    r.onend = () => {
+      if (recRef.current === r) recRef.current = null;
+      if (!done) fail("I didn't hear anything. Tap the microphone and try again!");
+    };
+    recRef.current = r;
+    setState((s) => ({ ...s, status: "listening", heard: "", msg: "" }));
+    try { r.start(); } catch (e) { fail("Voice check didn't work. Please try again."); }
+  }, [Rec, stop]);
+
+  useEffect(() => stop, [stop]);
+  return { listen, reset, ...state };
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+    </svg>
+  );
+}
+
 function SpeakerIcon() {
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -140,6 +269,8 @@ export default function App() {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const { say, speaking, error: speechError } = useSpeech();
+  const voice = useListen();
+  const resetVoice = voice.reset;
 
   useEffect(() => savePrefs({ selected, frontSide, autoSay }), [selected, frontSide, autoSay]);
 
@@ -161,6 +292,9 @@ export default function App() {
   }, [pool]);
 
   const card = deck[index];
+
+  // A new card starts with a clean voice check.
+  useEffect(() => { resetVoice(); }, [card && card.id, resetVoice]);
 
   const go = useCallback((delta) => {
     if (!deck.length) return;
@@ -196,7 +330,7 @@ export default function App() {
     if (autoSay && wordVisible && card) say(card.word);
   }, [autoSay, wordVisible, card, say]);
 
-  // Keyboard: ← → navigate, Space flips, P pronounces.
+  // Keyboard: ← → navigate, Space flips, P pronounces, M listens.
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.closest && e.target.closest("input, select, textarea")) return;
@@ -204,10 +338,11 @@ export default function App() {
       else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
       else if (e.key === " " && !(e.target.tagName === "BUTTON")) { e.preventDefault(); flip(); }
       else if (e.key.toLowerCase() === "p" && card) say(card.word);
+      else if (e.key.toLowerCase() === "m" && card) voice.listen(card.word);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, flip, say, card]);
+  }, [go, flip, say, card, voice.listen]);
 
   // Swipe on touch screens.
   const touch = useRef(null);
@@ -317,7 +452,7 @@ export default function App() {
         </div>
 
         {card ? (
-          <div className="card-wrap" key={card.id} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          <div className={"card-wrap" + (voice.status === "correct" || voice.status === "wrong" ? " " + voice.status : "")} key={card.id} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <button
               type="button"
               className={"card" + (flipped ? " flipped" : "")}
@@ -362,12 +497,41 @@ export default function App() {
           >
             <SpeakerIcon /> {speaking === "normal" ? "Saying…" : "Say it"}
           </button>
+          <button
+            type="button"
+            id="check-voice"
+            className={"mic" + (voice.status === "listening" ? " listening" : "")}
+            onClick={() => card && voice.listen(card.word)}
+            disabled={!card}
+            aria-pressed={voice.status === "listening"}
+            title="Say the word and check it (M)"
+          >
+            <MicIcon /> {voice.status === "listening" ? "Listening…" : "Say it yourself"}
+          </button>
           <button type="button" className="round" onClick={() => go(1)} aria-label="Next card">
             <Arrow dir="right" />
           </button>
         </div>
+        <div className={"feedback " + voice.status} role="status" aria-live="polite">
+          {voice.status === "listening" && <><span className="emoji">🎤</span> Listening… say the word!</>}
+          {voice.status === "correct" && <><span className="emoji">🎉</span> {voice.msg} <b>{card && card.word}</b></>}
+          {voice.status === "wrong" && (
+            <>
+              <span className="emoji">🤔</span> {voice.msg}
+              {voice.heard && <span className="heard">I heard “{voice.heard}”</span>}
+            </>
+          )}
+          {voice.status === "error" && voice.msg}
+        </div>
+        {voice.status === "correct" && (
+          <div className="confetti" key={voice.n} aria-hidden="true">
+            {Array.from({ length: 18 }, (_, i) => (
+              <i key={i} style={{ "--a": `${(i / 18) * 360}deg`, "--d": `${90 + (i % 4) * 28}px`, "--c": ["#3d8fd9", "#d9363a", "#7cbb2c", "#f2c418", "#ef7d1e", "#8a3fa0"][i % 6] }} />
+            ))}
+          </div>
+        )}
         {speechError && <p className="speech-error" role="status">{speechError}</p>}
-        <p className="hint">Tap the card to flip · ← → to move · Space flips · P says the word</p>
+        <p className="hint">Tap the card to flip · ← → to move · Space flips · P says the word · M checks your voice</p>
       </main>
 
       <section className="options" aria-label="Options">
